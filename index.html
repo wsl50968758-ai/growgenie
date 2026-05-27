@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WSL GrowGenie: 智慧農業監控系統</title>
+<!-- MQTT.js -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Google Fonts for a more modern look -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* Smart Agriculture Theme 
+   Designed for clarity, sustainability aesthetics, and responsiveness.
+*/
+:root{
+  /* --- Color Palette --- */
+  /* Primary: Forest Green - Stability & Nature */
+  --primary: #059669;       
+  --primary-hover: #047857; 
+  /* Primary Weak: Mint background for active states */
+  --primary-weak: #ecfdf5;  
+  /* Accent: Lime/Leaf Green - Growth indicators */
+  --accent: #65a30d;        
+  /* Backgrounds */
+  --bg: #f0fdf4;            /* Very pale green tint */
+  --card: #ffffff;
+  /* Text */
+  --txt: #064e3b;           /* Dark green-black */
+  --muted: #64748b;         /* Slate gray */
+  /* Borders */
+  --line: #d1fae5;          /* Light emerald border */
+  
+  /* Functional Colors */
+  --danger: #ef4444;
+  --temp-color: #f59e0b;    /* Amber for Warmth/Sun */
+  --hum-color: #0ea5e9;     /* Blue for Water */
+  --co2-color: #8b5cf6;     /* Purple for Gas/CO2 */
+  
+  /* --- Metrics --- */
+  --radius: 24px;           /* Modern rounded corners */
+  --shadow-card: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+  --shadow-float: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --font-main: 'Nunito', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0; 
+  font-family: var(--font-main);
+  background: var(--bg);
+  color: var(--txt);
+  /* Subtle leaf pattern effect using radial gradient */
+  background-image: radial-gradient(#d1fae5 1.5px, transparent 1.5px);
+  background-size: 32px 32px;
+}
+
+/* --- Header --- */
+.header{
+  position:sticky; top:0; z-index:50; 
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+.header-inner{
+  max-width:1400px; /* Increased width for 4 columns */
+  margin:0 auto; padding:12px 20px; 
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+}
+.brand{
+  display:flex; align-items:center; gap:10px; 
+  font-weight:800; font-size: 20px; color: var(--primary);
+  letter-spacing: -0.025em; margin-right: 20px;
+}
+.brand-badge{
+  width:40px; height:40px; border-radius:12px;
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 20px;
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);
+}
+.brand-badge::after { content: "🌱"; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1)); }
+
+/* --- Layout --- */
+.container{max-width:1400px; margin:24px auto; padding:0 20px 60px}
+
+/* Grid System */
+.grid{display:grid; gap:24px}
+.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))} /* Added grid-4 */
+
+@media (max-width:1200px){
+  .grid-4{grid-template-columns:repeat(2,1fr)} /* Break 4 cols to 2 cols on laptops */
+}
+@media (max-width:1024px){
+  .grid-3{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:768px){
+  .grid-2, .grid-3, .grid-4{grid-template-columns:1fr}
+  .header-inner { gap: 10px; }
+  .btn-nav span { display: none; } /* Hide text on mobile nav, keep icon */
+  .btn-nav svg { margin-right: 0 !important; }
+}
+
+/* --- Cards --- */
+.card{
+  background:var(--card); 
+  border:1px solid rgba(255,255,255,0.6); 
+  border-radius:var(--radius); 
+  box-shadow:var(--shadow-card); 
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
+}
+.card:hover{
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-float);
+  border-color: var(--line);
+}
+.card-head{
+  display:flex; justify-content:space-between; align-items:center; 
+  padding:18px 24px; 
+  background: linear-gradient(to bottom, #ffffff, #fcfdfd);
+  border-bottom: 1px solid #f1f5f9;
+}
+.card-head h3{
+  margin:0; font-size:16px; font-weight: 700; 
+  display: flex; align-items: center; gap: 8px;
+}
+.card-body{padding:24px}
+
+/* Collapsible MQTT Panel */
+.collapsible-head{ cursor:pointer; }
+.collapsible-card .collapsible-summary{
+  padding:16px 24px 18px;
+  border-top:1px solid #f1f5f9;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  background:#f9fafb;
+}
+.collapsible-body{ 
+  display:none;
+  border-top:1px solid #f1f5f9;
+}
+.collapsible-card.expanded .collapsible-body{
+  display:block;
+}
+.collapsible-card.expanded .collapsible-summary{
+  display:none;
+}
+.collapsible-arrow{
+  margin-left:8px;
+  transition:transform 0.25s ease;
+  color:var(--muted);
+}
+.collapsible-card.expanded .collapsible-arrow{
+  transform:rotate(180deg);
+}
+
+/* --- Inputs & Forms --- */
+.row{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.stack{display:flex; flex-direction:column; gap:6px}
+
+label { font-size: 13px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+
+input[type=text],input[type=password],input[type=number],select{
+  height:44px; border:1px solid var(--line); border-radius:12px; 
+  padding:0 14px; background:#fff; color: var(--txt); font-family: inherit; font-size: 14px;
+  transition: all 0.2s;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+}
+input:focus,select:focus{
+  outline:none; border-color:var(--primary); 
+  box-shadow:0 0 0 4px var(--primary-weak);
+}
+
+/* --- Buttons --- */
+.btn{
+  display:inline-flex; align-items:center; justify-content: center; gap:8px; 
+  height:42px; padding:0 18px; border-radius:12px;
+  border:1px solid transparent; 
+  cursor:pointer; font-weight:700; font-size: 14px; font-family: inherit;
+  transition: all 0.2s ease;
+}
+.btn:active{ transform: scale(0.97); }
+
+/* Primary Action */
+.btn-primary{
+  background: var(--primary); color: white;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+}
+.btn-primary:hover{ background: var(--primary-hover); box-shadow: 0 6px 15px rgba(5, 150, 105, 0.35); }
+
+/* Secondary / Ghost */
+.btn-ghost{
+  background: white; border-color: var(--line); color: var(--muted);
+}
+.btn-ghost:hover{ background: #f8fafc; color: var(--txt); border-color: #cbd5e1; }
+
+/* Green Light (Success-like) */
+.btn-green{
+  background: #ecfdf5; color: #047857; border-color: #a7f3d0;
+}
+.btn-green:hover{ background: #d1fae5; }
+
+/* Navigation Buttons */
+.btn-nav{ 
+  background: transparent; color: var(--muted); border: none; height: 38px;
+}
+.btn-nav:hover{ background: rgba(0,0,0,0.03); color: var(--primary); }
+.btn-nav.active{ 
+  background: var(--primary-weak); color: var(--primary); 
+  font-weight: 800; 
+}
+
+/* Utility Buttons */
+.btn-logout { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; height: 34px; font-size: 13px; }
+.btn-logout:hover { background: #fecaca; }
+.btn-admin { background: #334155; color: #f8fafc; height: 34px; font-size: 13px; }
+.btn-admin:hover { background: #1e293b; }
+
+/* --- Badges & Chips --- */
+.badge{
+  padding:4px 8px; border-radius:6px; background:#f1f5f9; 
+  color: var(--muted); border:1px solid #e2e8f0; font-size:11px; font-weight:700;
+}
+.admin-topic { display: none; } /* Controlled by JS */
+
+.chips{display:flex; gap:8px; flex-wrap:wrap}
+.chip{
+  display:inline-flex; align-items:center; gap:6px; height:32px; 
+  padding:0 12px; border-radius:99px; 
+  background:#fff; color:var(--muted); border:1px solid var(--line); 
+  font-size:12px; font-weight:700;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.chip.ok{ background: #ecfdf5; color: #059669; border-color: #6ee7b7; } 
+.chip.bad{ background: #fef2f2; color: #ef4444; border-color: #fca5a5; }
+
+/* --- Range Sliders (Nature Theme) --- */
+.range-wrap{display:flex; align-items:center; gap:10px; width: 100%;}
+input[type=range]{
+  -webkit-appearance:none; width:100%; height:8px; 
+  border-radius:99px; background: #e2e8f0; outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:24px; height:24px; 
+  border-radius:50%; background: #fff; 
+  border: 2px solid var(--primary);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  cursor: pointer; transition: transform 0.1s;
+}
+input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); background: var(--primary); border-color: #fff; }
+
+.value-badge{
+  min-width:44px; text-align:center; font-variant-numeric:tabular-nums; 
+  background: var(--primary); color: white; border-radius:8px; 
+  padding:4px 8px; font-weight:700; font-size: 13px;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+}
+
+/* --- Logs --- */
+.log{
+  background:#1e293b; color:#cbd5e1; 
+  border-radius:var(--radius); border:none; 
+  padding:20px; height:300px; overflow:auto; 
+  font-family:'Menlo', 'Monaco', monospace; font-size:12.5px; 
+  line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+}
+
+/* --- Chart Components --- */
+.chart-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; overflow: hidden; width: 100%; }
+.chart-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-bottom: 16px; }
+.chart-controls.full-row { grid-template-columns: 1fr; }
+.chart-input-group label { font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; color: var(--muted); }
+
+/* Fullscreen Mode */
+.fullscreen-card { 
+  position: fixed !important; top: 0; left: 0; right: 0; bottom: 0; 
+  width: 100vw !important; height: 100vh !important; z-index: 9999; 
+  border-radius: 0; margin: 0; 
+  display: flex; flex-direction: column; background: var(--bg);
+}
+.fullscreen-card .card-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.fullscreen-card canvas { max-width: 100%; max-height: 100%; }
+
+.btn-expand { 
+  cursor: pointer; color: var(--primary); background: rgba(5,150,105,0.1); 
+  border: none; font-size: 12px; font-weight: 700; padding: 6px 12px; 
+  border-radius: 6px; transition: all 0.2s; 
+}
+.btn-expand:hover { background: var(--primary); color: #fff; }
+.btn-close-fs { display: none; background: #fee2e2; color: #b91c1c; }
+.fullscreen-card .btn-expand { display: none; }
+.fullscreen-card .btn-close-fs { display: inline-flex; }
+
+/* Titles */
+.section-title { 
+  font-size: 20px; font-weight: 800; color: var(--txt); 
+  margin: 32px 0 16px 0; padding-left: 14px; 
+  border-left: 5px solid var(--accent);
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Views & Animation */
+.view-section { display: none; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.view-section.active { display: block; }
+@keyframes slideUp { from{opacity:0; transform:translateY(15px)} to{opacity:1; transform:translateY(0)} }
+
+/* --- Modal / Overlay --- */
+.overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(240, 253, 244, 0.85); backdrop-filter: blur(8px);
+  z-index: 100000; display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+  background: #fff; width: 380px; padding: 40px;
+  border-radius: 32px; box-shadow: 0 25px 50px -12px rgba(5, 150, 105, 0.15); 
+  border: 1px solid #fff; text-align: center; position: relative;
+}
+.modal-title { font-size: 24px; font-weight: 800; color: var(--txt); margin-bottom: 24px; }
+.modal-input { width: 100%; margin-bottom: 16px; font-size: 16px; padding: 12px; height: 50px; background: #f8fafc; border-color: #e2e8f0; }
+.modal-btn { width: 100%; height: 50px; justify-content: center; font-size: 16px; margin-top: 12px; }
+.modal-error { color: var(--danger); font-size: 14px; margin-top: 16px; display: none; background: #fef2f2; padding: 10px; border-radius: 8px; }
+.loading-spinner { border: 3px solid #f1f5f9; border-top: 3px solid #fff; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; margin: 0 auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="loginOverlay" class="overlay">
+  <div class="modal-box">
+    <div class="brand" style="justify-content:center; margin-bottom:24px; margin-right:0;">
+       <div class="brand-badge" style="width:64px; height:64px; font-size: 32px; border-radius: 18px;"></div>
+    </div>
+    <div class="modal-title">WSL GrowGenie 登入</div>
+    
+    <div style="text-align:left; font-size:13px; color:var(--muted); margin-bottom:6px; margin-left:4px; font-weight:700">帳號</div>
+    <input type="text" id="loginUser" class="modal-input" placeholder="請輸入帳號" autocomplete="off">
+    
+    <div style="text-align:left; font-size:13px; color:var(--muted); margin-bottom:6px; margin-left:4px; font-weight:700">密碼</div>
+    <input type="password" id="loginPass" class="modal-input" placeholder="請輸入密碼">
+    
+    <button id="btnLogin" class="btn modal-btn btn-primary" onclick="checkLogin()">
+        <span id="btnLoginText">登入系統</span>
+        <div id="loginSpinner" class="loading-spinner"></div>
+    </button>
+    <div id="loginError" class="modal-error"></div>
+  </div>
+</div>
+
+<!-- Admin Overlay -->
+<div id="adminOverlay" class="overlay" style="display:none; z-index:99999;">
+    <div class="modal-box">
+      <div style="position:absolute; top:20px; right:20px; cursor:pointer; color:var(--muted); font-size: 20px;" onclick="$('adminOverlay').style.display='none'">✕</div>
+      <div class="modal-title">新增使用者</div>
+      <input type="text" id="newUsername" class="modal-input" placeholder="新帳號">
+      <input type="text" id="newPassword" class="modal-input" placeholder="新密碼">
+      <select id="newRole" class="modal-input">
+          <option value="super administrator">Super Administrator</option>
+          <option value="user" selected>User</option>
+          <option value="visitor">Visitor</option>
+      </select>
+      <button class="btn modal-btn" style="background:var(--accent); color:white" onclick="createNewUser()">
+          <span id="btnCreateText">建立帳號</span>
+          <div id="createSpinner" class="loading-spinner"></div>
+      </button>
+      <div id="createMsg" class="modal-error" style="color:var(--accent); background: #ecfccb; color: #365314;"></div>
+    </div>
+</div>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="brand"><div class="brand-badge"></div><span> 華 特 固 態 照 明 </span></div>
+    <div style="display:flex; gap:8px; margin-right:auto;">
+        <button class="btn btn-nav active" id="btnNavMonitor" onclick="switchView('monitor')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>監控儀表</span>
+        </button>
+        <button class="btn btn-nav" id="btnNavControl" onclick="switchView('control')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z"/></svg>
+            <span>設備控制</span>
+        </button>
+        <button class="btn btn-admin" id="btnAdminPanel" style="border-radius:10px; margin-left:8px;" onclick="$('adminOverlay').style.display='flex'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+            Admin
+        </button>
+    </div>
+    <div class="chips">
+      <span class="chip" style="background:#f1f5f9; color:#475569; border-color:#e2e8f0;">User: <span id="displayUser">Guest</span></span>
+      <span class="chip" id="stateConn">Disconnected</span>
+      <span class="chip" id="chipRx">RX 0</span>
+      <span class="chip" id="chipTx">TX 0</span>
+    </div>
+    <button class="btn btn-logout" onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Connection Config -->
+  <section class="card collapsible-card" id="mqttPanel" style="margin-bottom:24px;">
+    <div class="card-head collapsible-head" onclick="toggleMqttPanel()">
+      <h3>🌱 MQTT WebSocket 連線設定</h3>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);">
+        <span>進階設定</span>
+        <svg class="collapsible-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- 摺疊時顯示的精簡連線按鈕區 -->
+    <div class="collapsible-summary">
+      <button class="btn btn-primary" id="btnConnectMini" style="width:120px">連線</button>
+      <button class="btn btn-ghost" id="btnDisconnectMini">斷線</button>
+    </div>
+
+    <!-- 展開後顯示的完整設定表單 -->
+    <div class="card-body collapsible-body">
+      <div class="row" style="margin-bottom:16px">
+        <div class="stack" style="min-width:280px">
+          <label>快速選擇伺服器</label>
+          <select id="preset">
+            <option value="custom" selected>自訂 / 手動輸入</option>
+            <option value="wss://MQTTGO.io:8084/mqtt">MQTTGO (wss)</option>
+            <option value="ws://broker.mqttgo.io:8000/mqtt">MQTTGO (ws)</option>
+            <option value="wss://broker.emqx.io:8084/mqtt">EMQX (wss)</option>
+            <option value="wss://test.mosquitto.org:8081/mqtt">Mosquitto (wss)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="stack"><label>URL</label><input id="wsUrl" type="text" value="wss://MQTTGO.io"></div>
+        <div class="stack"><label>Port</label><input id="wsPort" type="number" value="8084"></div>
+        <div class="stack"><label>Path</label><input id="wsPath" type="text" value="/mqtt"></div>
+        <div class="stack"><label>Client ID</label><input id="clientId" type="text" placeholder="自動生成"></div>
+        <div class="stack"><label>Username</label><input id="user" type="text" value=""></div>
+        <div class="stack"><label>Password</label><input id="pass" type="password" value=""></div>
+      </div>
+      <div class="row" style="margin-top:20px; justify-content: flex-end;">
+        <button class="btn btn-primary" id="btnConnect" style="width:120px">連線</button>
+        <button class="btn btn-ghost" id="btnDisconnect">斷線</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Monitor View -->
+  <div id="viewMonitor" class="view-section active">
+
+      <!-- Row 1: Gauges -->
+      <div class="section-title"><span>📊</span> 即時監控儀表</div>
+      <!-- Changed from grid-3 to grid-4 to accommodate CO2 -->
+      <div class="grid grid-4">
+        <!-- PPFD Gauge -->
+        <section class="card" id="cardGaugePPFD">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h3>☀️ PPFD 光量子通量密度</h3>
+                <span class="badge admin-topic">nfuc1/ppfd</span>
+              </div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardGaugePPFD', 'gauge', 'ppfd')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardGaugePPFD', 'gauge', 'ppfd')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-controls">
+                    <div class="chart-input-group"><label>Min</label><input type="number" id="ppfdMin" value="0" onchange="updateAllGauges()"></div>
+                    <div class="chart-input-group"><label>Max</label><input type="number" id="ppfdMax" value="1000" onchange="updateAllGauges()"></div>
+                </div>
+                <div class="chart-controls full-row">
+                    <div class="chart-input-group">
+                        <label>儀表樣式</label>
+                        <select id="ppfdType" onchange="updateAllGauges()">
+                            <option value="half-donut" selected>Half Donut (半圓)</option>
+                            <option value="thermometer">Thermometer (溫度計)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
+                            <option value="tachometer">Tachometer (轉速表)</option>
+                            <option value="circular-ring">Circular Ring (環形)</option>
+                            <option value="vertical-bar">Vertical Bar (垂直條)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="conGaugePPFD"><canvas id="cvGaugePPFD" width="300" height="200"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Temperature Gauge -->
+        <section class="card" id="cardGaugeTemp">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h3>🌡️ Temperature 環境溫度</h3>
+                <span class="badge admin-topic">nfuc1/vpdJson</span>
+              </div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardGaugeTemp', 'gauge', 'temp')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardGaugeTemp', 'gauge', 'temp')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-controls">
+                    <div class="chart-input-group"><label>Min</label><input type="number" id="tempMin" value="0" onchange="updateAllGauges()"></div>
+                    <div class="chart-input-group"><label>Max</label><input type="number" id="tempMax" value="50" onchange="updateAllGauges()"></div>
+                </div>
+                <div class="chart-controls full-row">
+                    <div class="chart-input-group">
+                        <label>儀表樣式</label>
+                        <select id="tempType" onchange="updateAllGauges()">
+                            <option value="half-donut">Half Donut (半圓)</option>
+                            <option value="thermometer" selected>Thermometer (溫度計)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
+                            <option value="tachometer">Tachometer (轉速表)</option>
+                            <option value="circular-ring">Circular Ring (環形)</option>
+                            <option value="vertical-bar">Vertical Bar (垂直條)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="conGaugeTemp"><canvas id="cvGaugeTemp" width="300" height="200"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Humidity Gauge -->
+        <section class="card" id="cardGaugeHum">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h3>💧 Humidity 環境濕度</h3>
+                <span class="badge admin-topic">nfuc1/vpdJson</span>
+              </div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardGaugeHum', 'gauge', 'hum')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardGaugeHum', 'gauge', 'hum')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-controls">
+                    <div class="chart-input-group"><label>Min</label><input type="number" id="humMin" value="0" onchange="updateAllGauges()"></div>
+                    <div class="chart-input-group"><label>Max</label><input type="number" id="humMax" value="100" onchange="updateAllGauges()"></div>
+                </div>
+                <div class="chart-controls full-row">
+                    <div class="chart-input-group">
+                        <label>儀表樣式</label>
+                        <select id="humType" onchange="updateAllGauges()">
+                            <option value="half-donut">Half Donut (半圓)</option>
+                            <option value="thermometer">Thermometer (溫度計)</option>
+                            <option value="water-tank" selected>Water Tank (水位)</option>
+                            <option value="tachometer">Tachometer (轉速表)</option>
+                            <option value="circular-ring">Circular Ring (環形)</option>
+                            <option value="vertical-bar">Vertical Bar (垂直條)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="conGaugeHum"><canvas id="cvGaugeHum" width="300" height="200"></canvas></div>
+            </div>
+        </section>
+
+        <!-- CO2 Gauge (New) -->
+        <section class="card" id="cardGaugeCo2">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h3>🌫️ CO2 二氧化碳濃度</h3>
+                <span class="badge admin-topic">nfuc2/co2ppm</span>
+              </div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardGaugeCo2', 'gauge', 'co2')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardGaugeCo2', 'gauge', 'co2')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-controls">
+                    <div class="chart-input-group"><label>Min</label><input type="number" id="co2Min" value="400" onchange="updateAllGauges()"></div>
+                    <div class="chart-input-group"><label>Max</label><input type="number" id="co2Max" value="2000" onchange="updateAllGauges()"></div>
+                </div>
+                <div class="chart-controls full-row">
+                    <div class="chart-input-group">
+                        <label>儀表樣式</label>
+                        <select id="co2Type" onchange="updateAllGauges()">
+                            <option value="half-donut" selected>Half Donut (半圓)</option>
+                            <option value="thermometer">Thermometer (溫度計)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
+                            <option value="tachometer">Tachometer (轉速表)</option>
+                            <option value="circular-ring">Circular Ring (環形)</option>
+                            <option value="vertical-bar">Vertical Bar (垂直條)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="conGaugeCo2"><canvas id="cvGaugeCo2" width="300" height="200"></canvas></div>
+            </div>
+        </section>
+
+      </div>
+
+      <!-- Row 2: Charts -->
+      <div class="section-title"><span>📈</span> 歷史趨勢分析</div>
+      <!-- Changed from grid-3 to grid-4 to accommodate CO2 -->
+      <div class="grid grid-4">
+        <!-- PPFD Chart -->
+        <section class="card" id="cardChartPPFD">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;"><h3>☀️ PPFD 趨勢圖</h3></div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardChartPPFD', 'chart', 'ppfd')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardChartPPFD', 'chart', 'ppfd')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinPPFD" value="0" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxPPFD" value="1000" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsPPFD" value="20" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
+              </div>
+              <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartPPFD"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Temp Chart -->
+        <section class="card" id="cardChartTemp">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;"><h3>🌡️ Temperature 趨勢圖</h3></div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardChartTemp', 'chart', 'temp')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardChartTemp', 'chart', 'temp')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinTemp" value="0" style="width:80px" onchange="updateChartConfig('temp')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxTemp" value="50" style="width:80px" onchange="updateChartConfig('temp')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsTemp" value="20" style="width:80px" onchange="updateChartConfig('temp')"></div>
+              </div>
+              <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartTemp"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Hum Chart -->
+        <section class="card" id="cardChartHum">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;"><h3>💧 Humidity 趨勢圖</h3></div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardChartHum', 'chart', 'hum')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardChartHum', 'chart', 'hum')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinHum" value="0" style="width:80px" onchange="updateChartConfig('hum')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxHum" value="100" style="width:80px" onchange="updateChartConfig('hum')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsHum" value="20" style="width:80px" onchange="updateChartConfig('hum')"></div>
+              </div>
+              <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartHum"></canvas></div>
+            </div>
+        </section>
+
+        <!-- CO2 Chart (New) -->
+        <section class="card" id="cardChartCo2">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;"><h3>🌫️ CO2 趨勢圖</h3></div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardChartCo2', 'chart', 'co2')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardChartCo2', 'chart', 'co2')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinCo2" value="400" style="width:80px" onchange="updateChartConfig('co2')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxCo2" value="2000" style="width:80px" onchange="updateChartConfig('co2')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsCo2" value="20" style="width:80px" onchange="updateChartConfig('co2')"></div>
+              </div>
+              <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartCo2"></canvas></div>
+            </div>
+        </section>
+
+      </div>
+  </div>
+
+  <!-- Control View -->
+  <div id="viewControl" class="view-section">
+      <div class="section-title" style="border-left-color:var(--accent)"><span>🎮</span> 設備控制面板</div>
+      <div class="grid grid-2">
+        <section class="card">
+          <div class="card-head"><h3>💡 亮度控制</h3></div>
+          <div class="card-body">
+            <div class="stack">
+              <!-- Wrapped topics with admin-topic class -->
+              <div class="stack"><label>R 亮度 <span class="admin-topic">(<code>wslm4sr/rlightlevel</code>)</span></label><div class="range-wrap"><input id="r" type="range" min="0" max="255" value="0"><span id="rv" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('wslm4sr/rlightlevel','r')">送出 R</button></div></div>
+              <div class="stack"><label>W 亮度 <span class="admin-topic">(<code>wslm4sw/wlightlevel</code>)</span></label><div class="range-wrap"><input id="w" type="range" min="0" max="255" value="0"><span id="wv" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('wslm4sw/wlightlevel','w')">送出 W</button></div></div>
+              <div class="stack"><label>B 亮度 <span class="admin-topic">(<code>wslm4sb/blightlevel</code>)</span></label><div class="range-wrap"><input id="b" type="range" min="0" max="255" value="0"><span id="bv" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('wslm4sb/blightlevel','b')">送出 B</button></div></div>
+              <div class="stack"><label>FR 亮度 <span class="admin-topic">(<code>wslm4sfr/frlightlevel</code>)</span></label><div class="range-wrap"><input id="fr" type="range" min="0" max="255" value="0"><span id="frv" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('wslm4sfr/frlightlevel','fr')">送出 FR</button></div></div>
+              <div class="stack"><label>中照燈 亮度 <span class="admin-topic">(<code>nfuc1/led</code>)</span></label><div class="range-wrap"><input id="c1" type="range" min="0" max="255" value="0"><span id="c1v" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('nfuc1/led','c1')">送出 中照燈</button></div></div>
+              <div class="stack"><label>高照燈 亮度 <span class="admin-topic">(<code>NFUA1/led</code>)</span></label><div class="range-wrap"><input id="a1" type="range" min="0" max="255" value="0"><span id="a1v" class="value-badge">0</span></div><div class="row"><button class="btn btn-primary" onclick="sendPWM('NFUA1/led','a1')">送出 高照燈</button></div></div>
+            </div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h3>🔌 繼電器 / 效果</h3></div>
+          <div class="card-body">
+            <div class="stack">
+              <div class="row"><button class="btn btn-green" onclick="pub('wslm4sr/rRelay','1')">rRelay ON</button><button class="btn btn-ghost" onclick="pub('wslm4sr/rRelay','0')">rRelay OFF</button></div>
+              <div class="row"><button class="btn btn-green" onclick="pub('wslm4sw/wRelay','1')">wRelay ON</button><button class="btn btn-ghost" onclick="pub('wslm4sw/wRelay','0')">wRelay OFF</button></div>
+              <div class="row"><button class="btn btn-green" onclick="pub('wslm4sb/bRelay','1')">bRelay ON</button><button class="btn btn-ghost" onclick="pub('wslm4sb/bRelay','0')">bRelay OFF</button></div>
+              <div class="row"><button class="btn btn-green" onclick="pub('wslm4sfr/frRelay','1')">frRelay ON</button><button class="btn btn-ghost" onclick="pub('wslm4sfr/frRelay','0')">frRelay OFF</button></div>
+              <hr style="width:100%; border:0; border-top:1px solid #eee; margin:16px 0;">
+              <div class="row"><button class="btn btn-primary" onclick="pub('wslm4sr/rainboweffect','rbon')">🌈 Rainbow ON</button><button class="btn btn-ghost" onclick="pub('wslm4sr/rainboweffect','rboff')">Rainbow OFF</button></div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="grid grid-2" style="margin-top:20px">
+        <section class="card">
+          <div class="card-head"><h3>🎬 情境控制</h3></div>
+          <div class="card-body">
+            <div class="stack">
+                <div class="row">
+                  <label>套用 ws</label><select id="ws"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select>
+                  <button class="btn btn-primary" onclick="applyWS()">套用</button>
+                </div>
+                <div class="row" style="margin-top:12px">
+                  <label>儲存+套用</label>
+                  <div class="row" style="gap:8px">
+                      <input id="wss_ws" type="number" min="1" max="10" value="6" style="width:60px" placeholder="ID">
+                      <input id="wss_r"  type="number" min="0" max="255" value="0" style="width:70px" placeholder="R">
+                      <input id="wss_w"  type="number" min="0" max="255" value="0" style="width:70px" placeholder="W">
+                      <input id="wss_b"  type="number" min="0" max="255" value="0" style="width:70px" placeholder="B">
+                      <input id="wss_fr" type="number" min="0" max="255" value="0" style="width:70px" placeholder="FR"> 
+                  </div>
+                  <button class="btn btn-green" onclick="saveWS()">儲存</button>
+                </div>
+            </div>
+          </div>
+        </section>
+        <!-- Added ID for control -->
+        <section class="card" id="cardCustomPublish" style="display:none;">
+            <div class="card-head"><h3>🛠️ 自訂 Publish</h3></div>
+            <div class="card-body">
+              <div class="stack">
+                <div class="stack"><label>Topic</label><input id="freeTopic" type="text" placeholder="例如 wslm4sr/rlightlevel"></div>
+                <div class="stack"><label>Payload</label><input id="freePayload" type="text" placeholder="例如 128"></div>
+                <button class="btn btn-primary" onclick="pubFree()">Publish 送出</button>
+              </div>
+            </div>
+        </section>
+      </div>
+  </div>
+    
+  <!-- Log -->
+  <div class="grid" style="margin-top:30px;">
+    <section class="card">
+      <div class="card-head"><h3>📜 System Logs</h3><button class="btn btn-ghost" onclick="clearLog()" style="height:32px; font-size:12px;">Clear Logs</button></div>
+      <div class="card-body"><pre id="log" class="log"></pre></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ========= CONFIG =========
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoXUEHRT82aoGZmsrW3DvwIvOrvsu4h0vYbmZQ6GVDMnR3mBgacT3BspCGjBSHNQ/exec'; 
+// ==========================
+
+let client = null, rx = 0, tx = 0;
+const $ = (id) => document.getElementById(id);
+let currentUserRole = null, currentUserName = null;
+let wavePhase = 0; // For water wave animation
+
+// Login & Auth
+function toggleLoading(btnId, spinnerId, show) {
+    const btn = $(btnId), spinner = $(spinnerId), span = btn.querySelector('span');
+    if(show){ spinner.style.display='block'; span.style.display='none'; btn.disabled=true; }
+    else { spinner.style.display='none'; span.style.display='inline'; btn.disabled=false; }
+}
+function checkLogin() {
+    if(!GOOGLE_SCRIPT_URL) { alert("請先設定 GOOGLE_SCRIPT_URL"); return; }
+    const u = $('loginUser').value.trim(), p = $('loginPass').value.trim(), err = $('loginError');
+    if(!u || !p) { err.textContent = "請輸入帳號與密碼"; err.style.display = 'block'; return; }
+    toggleLoading('btnLogin', 'loginSpinner', true); 
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST', headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: 'login', user: u, pass: p })
+    }).then(res => res.json()).then(data => {
+        if(data.result === 'success') {
+            currentUserRole = data.role; currentUserName = data.username;
+            $('loginOverlay').style.display = 'none'; $('displayUser').textContent = `${currentUserName} (${currentUserRole})`;
+            applyPermissions(currentUserRole);
+        } else { err.textContent = data.message || "登入失敗"; err.style.display = 'block'; }
+    }).catch(e => { err.textContent = "連線錯誤: " + e; err.style.display = 'block'; }).finally(() => toggleLoading('btnLogin', 'loginSpinner', false));
+}
+function logout() {
+    currentUserRole = null; currentUserName = null; $('displayUser').textContent = 'Guest';
+    $('btnNavControl').style.display = 'none'; $('btnAdminPanel').style.display = 'none';
+    
+    // Hide Custom Publish Card
+    const cardPub = $('cardCustomPublish');
+    if(cardPub) cardPub.style.display = 'none';
+
+    // Hide Topic Elements
+    document.querySelectorAll('.admin-topic').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    switchView('monitor'); disconnectWS(); $('loginOverlay').style.display = 'flex';
+    $('loginUser').value = ''; $('loginPass').value = ''; $('loginError').style.display = 'none';
+}
+function applyPermissions(role) {
+    const isSuper = (role === 'super administrator');
+    const isUser = (role === 'user');
+
+    // Nav Control Visibility
+    $('btnNavControl').style.display = (isUser || isSuper) ? 'inline-flex' : 'none';
+    
+    // Admin Panel (Super only)
+    $('btnAdminPanel').style.display = isSuper ? 'inline-flex' : 'none';
+    
+    // Custom Publish Card (Super only)
+    const cardPub = $('cardCustomPublish');
+    if(cardPub) cardPub.style.display = isSuper ? 'block' : 'none';
+
+    // Toggle Topic Visibility (New Feature)
+    document.querySelectorAll('.admin-topic').forEach(el => {
+        el.style.display = isSuper ? 'inline' : 'none';
+    });
+
+    if(role === 'visitor') switchView('monitor');
+}
+function createNewUser() {
+    const newUser = $('newUsername').value.trim(), newPass = $('newPassword').value.trim(), newRole = $('newRole').value, msg = $('createMsg');
+    if(!newUser || !newPass) { msg.textContent = "請填寫完整資訊"; msg.style.display = 'block'; return; }
+    const spinner = $('createSpinner'), txt = $('btnCreateText'), btn = spinner.parentElement;
+    spinner.style.display = 'block'; txt.style.display = 'none'; btn.disabled = true;
+    fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST', headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: 'create_user', newUser: newUser, newPass: newPass, newRole: newRole })
+    }).then(res => res.json()).then(data => {
+        if(data.result === 'success') {
+            alert("建立成功！"); $('adminOverlay').style.display = 'none';
+            $('newUsername').value = ''; $('newPassword').value = ''; msg.style.display = 'none';
+        } else { msg.textContent = data.message; msg.style.display = 'block'; }
+    }).catch(e => { msg.textContent = "錯誤: " + e; msg.style.display = 'block'; }).finally(() => { spinner.style.display = 'none'; txt.style.display = 'inline'; btn.disabled = false; });
+}
+$('loginPass').addEventListener('keyup', (e) => { if (e.key === 'Enter') checkLogin(); });
+
+// Store & View
+// Added co2 to store
+const store = { ppfd: { val: 0, chart: null }, temp: { val: 0, chart: null }, hum: { val: 0, chart: null }, co2: { val: 0, chart: null } };
+
+function switchView(viewName) {
+    if(currentUserRole === 'visitor' && viewName === 'control') { alert('權限不足：Visitor 僅能使用 Monitor'); return; }
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    document.getElementById(viewName === 'monitor' ? 'viewMonitor' : 'viewControl').classList.add('active');
+    $('btnNavMonitor').classList.toggle('active', viewName === 'monitor'); $('btnNavControl').classList.toggle('active', viewName === 'control');
+    if(viewName === 'monitor') setTimeout(() => { 
+        if(store.ppfd.chart) store.ppfd.chart.resize(); 
+        if(store.temp.chart) store.temp.chart.resize(); 
+        if(store.hum.chart) store.hum.chart.resize(); 
+        if(store.co2.chart) store.co2.chart.resize(); // Added resize for CO2
+    }, 100);
+}
+['r','w','b','fr','c1','a1'].forEach(k => { const el = $(k); if(el) el.addEventListener('input', e => $(k+'v').textContent = e.target.value); });
+
+// Log & MQTT
+function logLine(s){ const pre=$('log'), t=(new Date()).toLocaleTimeString(); pre.textContent += (pre.textContent?'\n':'') + '['+t+'] '+ s; pre.scrollTop=pre.scrollHeight; }
+function clearLog(){ $('log').textContent = ''; }
+function updateChips(){ $('chipRx').textContent='RX '+rx; $('chipTx').textContent='TX '+tx; }
+function setConn(ok){ const el=$('stateConn'); el.textContent = ok ? 'Connected' : 'Disconnected'; el.className = ok ? 'chip ok' : 'chip bad'; }
+function fillFieldsFromFullUrl(full){ try{ const u = new URL(full); $('wsUrl').value=`${u.protocol}//${u.hostname}`; $('wsPort').value=u.port||(u.protocol==='wss:'?443:80); $('wsPath').value=u.pathname||'/mqtt'; }catch(e){} }
+$('preset').addEventListener('change', (e)=>{ if(e.target.value!=='custom') fillFieldsFromFullUrl(e.target.value); });
+
+function connectWS(){
+  if(client){ try{ client.end(true); }catch(e){} client=null; }
+  const url = $('wsUrl').value.trim().replace(/\/$/,''), port= Number($('wsPort').value||0), path= $('wsPath').value || '/mqtt';
+  const cid = $('clientId').value || ('WSL-'+Math.random().toString(16).slice(2)), user= $('user').value, pass=$('pass').value;
+  const wsUrl = `${url}:${port}${path}`;
+  logLine('Connecting to '+wsUrl+' ...');
+  client = mqtt.connect(wsUrl, { clientId: cid, username: user||undefined, password: pass||undefined, clean: true, reconnectPeriod: 0 });
+
+  client.on('connect', () => {
+    setConn(true); logLine('[Event] Connected');
+    // Added CO2 topic to subscription
+    ['nfuc1/ppfd', 'nfuc1/vpdJson', 'nfuc2/co2ppm'].forEach(t => client.subscribe(t, {qos:0}, (err) => { 
+        // Only Log Subscriptions for Super Admin
+        if(!err && currentUserRole === 'super administrator') logLine('[Subscribed] ' + t); 
+    }));
+  });
+  client.on('reconnect', () => logLine('[Event] Reconnecting...'));
+  client.on('close', () => { setConn(false); logLine('[Event] Connection closed'); });
+  client.on('error', (err) => { setConn(false); logLine('[Event] Error: '+err.message); });
+  client.on('message', (topic, message) => {
+    rx++; updateChips(); const msgStr = message.toString();
+    // Only Log RX for Super Admin
+    if(currentUserRole === 'super administrator') logLine(`RX ${topic} : ${msgStr}`);
+    
+    if(topic === 'nfuc1/ppfd'){
+        store.ppfd.val = parseFloat(msgStr) || 0;
+        renderGauge('ppfd'); updateGenericChart(store.ppfd.chart, store.ppfd.val, 'chartMaxPointsPPFD');
+    }
+    // Added CO2 logic
+    if(topic === 'nfuc2/co2ppm'){
+        store.co2.val = parseFloat(msgStr) || 0;
+        renderGauge('co2'); updateGenericChart(store.co2.chart, store.co2.val, 'chartMaxPointsCo2');
+    }
+    if(topic === 'nfuc1/vpdJson'){
+        try {
+            const data = JSON.parse(msgStr); const item = Array.isArray(data) ? data[0] : data; 
+            if(item){
+                if(item.Temperature !== undefined){ store.temp.val = parseFloat(item.Temperature); renderGauge('temp'); updateGenericChart(store.temp.chart, store.temp.val, 'chartMaxPointsTemp'); }
+                if(item.Humidity !== undefined){ store.hum.val = parseFloat(item.Humidity); renderGauge('hum'); updateGenericChart(store.hum.chart, store.hum.val, 'chartMaxPointsHum'); }
+            }
+        } catch(e) { logLine('[Error] JSON Parse: ' + e.message); }
+    }
+  });
+}
+function disconnectWS(){ if(client){ client.end(true); client=null; setConn(false); logLine('[Event] Disconnected by user.'); } }
+function ensureConn(){ if(!client || !client.connected){ logLine('[Warn] Not connected.'); return false; } return true; }
+function pub(topic, payload){ 
+    if(!ensureConn()) return; 
+    // Only Log TX for Super Admin
+    if(currentUserRole === 'super administrator') logLine(`TX ${topic} : ${payload}`);
+    
+    client.publish(topic, String(payload), {qos:0, retain:false}, (err)=>{ if(err){ logLine('[Error] Publish error: '+err); return; } tx++; updateChips(); }); 
+}
+function sendPWM(topic, keyId){ const el = document.getElementById(keyId); if(el) pub(topic, el.value); }
+function applyWS(){ pub('wsnfum3s50968758', $('ws').value); }
+function saveWS(){ pub('wssnfum3s50968758', `${$('wss_ws').value},${$('wss_r').value},${$('wss_w').value},${$('wss_b').value},${$('wss_fr').value}`); }
+function pubFree(){ const t=$('freeTopic').value.trim(), p=$('freePayload').value; if(!t)return; pub(t, p); }
+
+$('btnConnect').addEventListener('click', connectWS); $('btnDisconnect').addEventListener('click', disconnectWS);
+const btnConnectMini = $('btnConnectMini');
+if(btnConnectMini){ btnConnectMini.addEventListener('click', (e)=>{ e.stopPropagation(); connectWS(); }); }
+const btnDisconnectMini = $('btnDisconnectMini');
+if(btnDisconnectMini){ btnDisconnectMini.addEventListener('click', (e)=>{ e.stopPropagation(); disconnectWS(); }); }
+
+/* =========================================
+   Gauge System (Updated with 6 Types)
+   ========================================= */
+
+function renderGauge(key) {
+    // FIX: Handle ID casing logic. PPFD uses all-caps "PPFD", others use "Key", CO2 uses "Co2"
+    let suffix = key.charAt(0).toUpperCase() + key.slice(1);
+    if(key === 'ppfd') suffix = 'PPFD';
+    if(key === 'co2') suffix = 'Co2';
+
+    const canvasId = `cvGauge${suffix}`;
+    const containerId = `conGauge${suffix}`;
+    const minId = `${key}Min`, maxId = `${key}Max`, typeId = `${key}Type`;
+    const val = store[key].val;
+    const type = $(typeId).value;
+
+    let label = key.toUpperCase();
+    if(key === 'temp') label = 'Temp °C';
+    if(key === 'hum') label = 'Humidity %';
+    if(key === 'co2') label = 'CO2 ppm';
+
+    const canvas = $(canvasId), container = $(containerId);
+    if(!canvas || !container) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    
+    let min = parseFloat($(minId).value) || 0, max = parseFloat($(maxId).value) || 100;
+    if(max <= min) max = min + 10;
+    
+    // Clear Canvas
+    ctx.clearRect(0, 0, w, h);
+
+    // Dispatcher
+    switch(type) {
+        case 'thermometer': drawThermometer(ctx, w, h, val, min, max, label); break;
+        case 'water-tank': drawWaterTank(ctx, w, h, val, min, max, label); break;
+        case 'tachometer': drawTachometer(ctx, w, h, val, min, max, label); break;
+        case 'circular-ring': drawCircularRing(ctx, w, h, val, min, max, label); break;
+        case 'vertical-bar': drawVerticalBar(ctx, w, h, val, min, max, label); break;
+        case 'half-donut': 
+        default: 
+            drawHalfDonut(ctx, w, h, val, min, max, label); 
+            break;
+    }
+}
+
+// 1. Half Donut (Original)
+function drawHalfDonut(ctx, w, h, val, min, max, label) {
+    let clampVal = Math.max(min, Math.min(max, val));
+    let ratio = (clampVal - min) / (max - min);
+    const cx = w / 2;
+    let r_est = Math.min(w / 2, h) * 0.8; 
+    let lineWidth = Math.max(20, r_est * 0.15);
+    const bottomPadding = Math.max(40, lineWidth/2+10);
+    const cy = h - bottomPadding; 
+    const r = Math.min((w/2)-(lineWidth/2)-20, cy-(lineWidth/2)-20);
+    lineWidth = Math.max(15, r * 0.15);
+
+    // BG
+    ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 2*Math.PI); ctx.lineWidth=lineWidth; ctx.lineCap='round'; ctx.strokeStyle='#e2e8f0'; ctx.stroke();
+    // Active
+    const grad = ctx.createLinearGradient(cx-r, cy, cx+r, cy);
+    if(label.includes('Hum')) { grad.addColorStop(0,'#bae6fd'); grad.addColorStop(1,'#0ea5e9'); }
+    else if(label.includes('Temp')) { grad.addColorStop(0,'#fde68a'); grad.addColorStop(1,'#d97706'); }
+    else if(label.includes('CO2')) { grad.addColorStop(0,'#a78bfa'); grad.addColorStop(1,'#7c3aed'); } // Purple for CO2
+    else { grad.addColorStop(0,'#86efac'); grad.addColorStop(1,'#059669'); } // Green for PPFD
+    if(ratio > 0) { ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI+(ratio*Math.PI)); ctx.strokeStyle=grad; ctx.stroke(); }
+    
+    // Text
+    ctx.fillStyle='#064e3b'; ctx.font=`bold ${Math.max(20, r*0.35)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText(Math.round(val), cx, cy-(r*0.2));
+    ctx.font='12px sans-serif'; ctx.fillStyle='#64748b'; ctx.fillText(label, cx, cy-(r*0.55));
+}
+
+// 2. Thermometer (New)
+function drawThermometer(ctx, w, h, val, min, max, label) {
+    let ratio = (Math.max(min, Math.min(max, val)) - min) / (max - min);
+    const cx = w / 2;
+    const bulbR = Math.min(w, h) * 0.15;
+    const stemW = bulbR;
+    const topY = 20;
+    const botY = h - bulbR - 10;
+    const stemH = botY - topY;
+    
+    // Stem BG
+    ctx.beginPath(); ctx.roundRect(cx - stemW/2, topY, stemW, stemH + bulbR, stemW/2); ctx.fillStyle = '#f1f5f9'; ctx.fill(); ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=1; ctx.stroke();
+    
+    // Bulb (Always filled)
+    ctx.beginPath(); ctx.arc(cx, botY, bulbR, 0, Math.PI*2); 
+    const color = ratio < 0.3 ? '#0ea5e9' : (ratio < 0.7 ? '#f59e0b' : '#ef4444');
+    ctx.fillStyle = color; ctx.fill();
+
+    // Stem Fill
+    const fillH = stemH * ratio;
+    const fillY = botY - fillH;
+    ctx.beginPath(); ctx.rect(cx - stemW/2 + 2, fillY, stemW - 4, fillH + 2); ctx.fillStyle = color; ctx.fill();
+
+    // Value
+    ctx.fillStyle='#064e3b'; ctx.font='bold 20px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(Math.round(val), cx + bulbR + 15, botY);
+    ctx.font='12px sans-serif'; ctx.fillStyle='#64748b';
+    ctx.fillText(label.split(' ')[0], cx + bulbR + 15, botY - 20);
+}
+
+// 3. Water Tank (Wave Animation)
+function drawWaterTank(ctx, w, h, val, min, max, label) {
+    let ratio = (Math.max(min, Math.min(max, val)) - min) / (max - min);
+    const mx = 40; const my = 20;
+    const tankW = w - mx*2; const tankH = h - my*2;
+
+    // Glass (Container)
+    ctx.beginPath(); ctx.rect(mx, my, tankW, tankH);
+    ctx.fillStyle = '#f0f9ff'; ctx.fill(); ctx.strokeStyle = '#bae6fd'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Clip to tank area for water waves
+    ctx.save();
+    ctx.beginPath(); ctx.rect(mx, my, tankW, tankH);
+    ctx.clip();
+
+    const waterH = tankH * ratio;
+    const waterBaseY = my + tankH - waterH;
+
+    // Wave Config
+    const waveHeight = 8; // Amplitude
+    const waveLength = tankW * 0.8; // Period
+
+    // Color based on type
+    let waveColor = '14, 165, 233'; // Blue
+    if(label.includes('CO2')) waveColor = '139, 92, 246'; // Purple
+    else if(label.includes('Temp')) waveColor = '245, 158, 11'; // Amber
+    else if(label.includes('PPFD')) waveColor = '5, 150, 105'; // Green
+
+    // Wave 1 (Back, slower, lighter)
+    ctx.fillStyle = `rgba(${waveColor}, 0.4)`;
+    ctx.beginPath();
+    ctx.moveTo(mx, tankH + my); // Bottom Left
+    for(let x = 0; x <= tankW; x += 5) {
+        // y = Base + Amplitude * sin( (x + phase) / period )
+        const y = waterBaseY + waveHeight * Math.sin( (x + wavePhase * 30) / (waveLength/5) );
+        ctx.lineTo(mx + x, y);
+    }
+    ctx.lineTo(mx + tankW, tankH + my); // Bottom Right
+    ctx.closePath();
+    ctx.fill();
+
+    // Wave 2 (Front, faster, darker)
+    ctx.fillStyle = `rgba(${waveColor}, 0.7)`;
+    ctx.beginPath();
+    ctx.moveTo(mx, tankH + my);
+    for(let x = 0; x <= tankW; x += 5) {
+        // Offset phase by PI to make it look different
+        const y = waterBaseY + waveHeight * Math.sin( (x + wavePhase * 50 + 100) / (waveLength/4) );
+        ctx.lineTo(mx + x, y);
+    }
+    ctx.lineTo(mx + tankW, tankH + my);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore(); // Remove Clip
+
+    // Text
+    ctx.fillStyle='#0c4a6e'; ctx.font='bold 24px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(Math.round(val), w/2, h/2);
+    ctx.font='12px sans-serif';
+    ctx.fillText(label, w/2, h/2 + 25);
+}
+
+// 4. Tachometer (Suggested)
+function drawTachometer(ctx, w, h, val, min, max, label) {
+    let ratio = (Math.max(min, Math.min(max, val)) - min) / (max - min);
+    const cx = w/2, cy = h/2 + 10;
+    const r = Math.min(w,h)/2 - 20;
+    const startAngle = Math.PI * 0.75; // 135 deg
+    const endAngle = Math.PI * 2.25;   // 405 deg (Total 270)
+    
+    // Ticks
+    for(let i=0; i<=10; i++) {
+        const ang = startAngle + (endAngle - startAngle) * (i/10);
+        const x1 = cx + (r-10)*Math.cos(ang), y1 = cy + (r-10)*Math.sin(ang);
+        const x2 = cx + r*Math.cos(ang), y2 = cy + r*Math.sin(ang);
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle='#9ca3af'; ctx.stroke();
+    }
+    
+    // Needle
+    const needleAng = startAngle + (endAngle - startAngle) * ratio;
+    const nx = cx + (r-15)*Math.cos(needleAng), ny = cy + (r-15)*Math.sin(needleAng);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(nx, ny); ctx.strokeStyle='#ef4444'; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fillStyle='#ef4444'; ctx.fill();
+
+    // Text
+    ctx.fillStyle='#374151'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(Math.round(val), cx, h - 10);
+}
+
+// 5. Circular Ring (Suggested)
+function drawCircularRing(ctx, w, h, val, min, max, label) {
+    let ratio = (Math.max(min, Math.min(max, val)) - min) / (max - min);
+    const cx = w/2, cy = h/2;
+    const r = Math.min(w,h)/2 - 15;
+    const lw = 12;
+
+    // BG Ring
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.strokeStyle='#f3f4f6'; ctx.lineWidth=lw; ctx.stroke();
+
+    // FG Ring
+    let color = '#10b981';
+    if(label.includes('Temp')) color = '#f97316';
+    else if(label.includes('Hum')) color = '#0ea5e9';
+    else if(label.includes('CO2')) color = '#8b5cf6';
+
+    ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + (ratio * Math.PI*2));
+    ctx.strokeStyle=color; ctx.lineCap='round'; ctx.stroke();
+
+    // Text
+    ctx.fillStyle=color; ctx.font='bold 22px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(Math.round(val), cx, cy);
+    ctx.fillStyle='#6b7280'; ctx.font='11px sans-serif';
+    ctx.fillText(label, cx, cy + 20);
+}
+
+// 6. Vertical Bar (Suggested)
+function drawVerticalBar(ctx, w, h, val, min, max, label) {
+    let ratio = (Math.max(min, Math.min(max, val)) - min) / (max - min);
+    const bw = 40; 
+    const bx = w/2 - bw/2;
+    const by = 20;
+    const bh = h - 40;
+
+    // BG
+    ctx.fillStyle='#f3f4f6'; ctx.fillRect(bx, by, bw, bh);
+    
+    // Fill
+    const fillH = bh * ratio;
+    const fillY = by + bh - fillH;
+    let color = '#10b981';
+    if(label.includes('Temp')) color = '#ef4444';
+    else if(label.includes('Hum')) color = '#3b82f6';
+    else if(label.includes('CO2')) color = '#8b5cf6';
+
+    ctx.fillStyle=color; ctx.fillRect(bx, fillY, bw, fillH);
+
+    // Border
+    ctx.strokeStyle='#e5e7eb'; ctx.strokeRect(bx, by, bw, bh);
+
+    // Text side
+    ctx.fillStyle='#1f2937'; ctx.textAlign='left'; ctx.font='bold 18px sans-serif';
+    ctx.fillText(Math.round(val), bx + bw + 15, by + bh/2);
+    ctx.fillStyle='#6b7280'; ctx.font='12px sans-serif';
+    ctx.fillText(label.split(' ')[0], bx + bw + 15, by + bh/2 + 20);
+}
+
+function updateAllGauges() {
+    renderGauge('ppfd'); renderGauge('temp'); renderGauge('hum'); renderGauge('co2');
+}
+
+// Chart Utils
+function getFormattedTime() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0');
+    const h = String(now.getHours()).padStart(2,'0');
+    const min = String(now.getMinutes()).padStart(2,'0');
+    const s = String(now.getSeconds()).padStart(2,'0');
+    return `${y}/${m}/${d} ${h}:${min}:${s}`;
+}
+
+function initGenericChart(canvasId, color, label){
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, backgroundColor: color + '1A', borderWidth: 2, tension: 0.4, fill: true, pointRadius: 2, pointHoverRadius: 5 }] },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: { duration: 0 }, 
+            scales: { 
+                x: { 
+                    display: true,
+                    ticks: { maxRotation: 45, minRotation: 45, font: { size: 10 } }
+                }, 
+                y: { grid: { color: '#f1f5f9' } } 
+            }, 
+            plugins: { legend: { display: false } } 
+        }
+    });
+}
+function updateGenericChart(chart, val, maxPointsId){
+    if(!chart) return;
+    const maxPoints = parseInt($(maxPointsId).value) || 20;
+    chart.data.labels.push(getFormattedTime()); 
+    chart.data.datasets[0].data.push(val);
+    while(chart.data.labels.length > maxPoints){ chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+    chart.update();
+}
+function updateChartConfig(type){
+    let chart, minId, maxId, maxPtsId;
+    if(type === 'ppfd') { chart = store.ppfd.chart; minId='chartYMinPPFD'; maxId='chartYMaxPPFD'; maxPtsId='chartMaxPointsPPFD'; }
+    if(type === 'temp') { chart = store.temp.chart; minId='chartYMinTemp'; maxId='chartYMaxTemp'; maxPtsId='chartMaxPointsTemp'; }
+    if(type === 'hum')  { chart = store.hum.chart; minId='chartYMinHum'; maxId='chartYMaxHum'; maxPtsId='chartMaxPointsHum'; }
+    if(type === 'co2')  { chart = store.co2.chart; minId='chartYMinCo2'; maxId='chartYMaxCo2'; maxPtsId='chartMaxPointsCo2'; }
+    if(!chart) return;
+    const yMin = parseFloat($(minId).value), yMax = parseFloat($(maxId).value);
+    chart.options.scales.y.min = isNaN(yMin) ? undefined : yMin;
+    chart.options.scales.y.max = isNaN(yMax) ? undefined : yMax;
+    const maxPoints = parseInt($(maxPtsId).value) || 20;
+    while(chart.data.labels.length > maxPoints){ chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+    chart.update();
+}
+
+// Animation Loop for Wave
+function animate() {
+    wavePhase += 0.05; // Increment phase
+    
+    // Check if any visible gauge is 'water-tank' and needs redraw
+    ['ppfd', 'temp', 'hum', 'co2'].forEach(key => {
+        const typeEl = document.getElementById(key + 'Type');
+        if(typeEl && typeEl.value === 'water-tank') {
+            renderGauge(key);
+        }
+    });
+    
+    requestAnimationFrame(animate);
+}
+
+window.addEventListener('load', () => {
+    // UPDATED COLORS for Smart Agriculture Theme:
+    // PPFD (Green), Temp (Orange/Amber), Humidity (Blue), CO2 (Purple)
+    store.ppfd.chart = initGenericChart('cvChartPPFD', '#059669', 'PPFD');
+    store.temp.chart = initGenericChart('cvChartTemp', '#d97706', 'Temp');
+    store.hum.chart  = initGenericChart('cvChartHum',  '#0ea5e9', 'Humidity');
+    store.co2.chart  = initGenericChart('cvChartCo2',  '#8b5cf6', 'CO2');
+    
+    updateChartConfig('ppfd'); updateChartConfig('temp'); updateChartConfig('hum'); updateChartConfig('co2');
+    updateAllGauges();
+    animate(); // Start Animation Loop
+});
+
+function toggleMqttPanel(){
+    const card = document.getElementById('mqttPanel');
+    if(!card) return;
+    card.classList.toggle('expanded');
+}
+
+function toggleFullscreen(cardId, type, dataType) {
+    const card = $(cardId); if(!card) return;
+    card.classList.toggle('fullscreen-card');
+    const isFullscreen = card.classList.contains('fullscreen-card');
+    if(type === 'gauge') {
+        let suffix = dataType.charAt(0).toUpperCase() + dataType.slice(1);
+        if(dataType === 'ppfd') suffix = 'PPFD'; 
+        if(dataType === 'co2') suffix = 'Co2'; 
+
+        const canvasId = `cvGauge${suffix}`;
+        const conId = `conGauge${suffix}`;
+        const canvas = $(canvasId), container = $(conId);
+        if (isFullscreen) { canvas.width = container.clientWidth; canvas.height = container.clientHeight; } else { canvas.width = 300; canvas.height = 200; }
+        renderGauge(dataType);
+    } else if (type === 'chart') {
+        let chart = store[dataType].chart;
+        if(chart) setTimeout(() => chart.resize(), 100);
+    }
+}
+window.addEventListener('resize', () => {
+    ['ppfd', 'temp', 'hum', 'co2'].forEach(type => {
+        let suffix = type.charAt(0).toUpperCase() + type.slice(1);
+        if(type === 'ppfd') suffix = 'PPFD'; 
+        if(type === 'co2') suffix = 'Co2'; 
+        
+        const cardId = `cardGauge${suffix}`;
+        const card = $(cardId);
+        if(card && card.classList.contains('fullscreen-card')) {
+            const canvasId = `cvGauge${suffix}`;
+            const conId = `conGauge${suffix}`;
+            const canvas = $(canvasId), container = $(conId);
+            canvas.width = container.clientWidth; canvas.height = container.clientHeight;
+            renderGauge(type);
+        }
+    });
+});
+</script>
+</body>
+</html>
