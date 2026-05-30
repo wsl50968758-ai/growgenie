@@ -93,15 +93,20 @@ body{
 .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .grid-4{grid-template-columns:repeat(4,minmax(0,1fr))} /* Added grid-4 */
+.grid-5{grid-template-columns:repeat(5,minmax(0,1fr))} /* Added grid-5 for 5 metrics (V30) */
 
+@media (max-width:1400px){
+  .grid-5{grid-template-columns:repeat(3,1fr)}
+}
 @media (max-width:1200px){
   .grid-4{grid-template-columns:repeat(2,1fr)} /* Break 4 cols to 2 cols on laptops */
+  .grid-5{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:1024px){
   .grid-3{grid-template-columns:repeat(2,1fr)}
 }
 @media (max-width:768px){
-  .grid-2, .grid-3, .grid-4{grid-template-columns:1fr}
+  .grid-2, .grid-3, .grid-4, .grid-5{grid-template-columns:1fr}
   .header-inner { gap: 10px; }
   .btn-nav span { display: none; } /* Hide text on mobile nav, keep icon */
   .btn-nav svg { margin-right: 0 !important; }
@@ -122,16 +127,17 @@ body{
   border-color: var(--line);
 }
 .card-head{
-  display:flex; justify-content:space-between; align-items:center; 
-  padding:18px 24px; 
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 16px; /* V31: tighter padding for 5-col layout */
   background: linear-gradient(to bottom, #ffffff, #fcfdfd);
   border-bottom: 1px solid #f1f5f9;
+  gap: 8px;
 }
 .card-head h3{
-  margin:0; font-size:16px; font-weight: 700; 
-  display: flex; align-items: center; gap: 8px;
+  margin:0; font-size:14px; font-weight: 700; /* V31: smaller title to fit narrow column */
+  display: flex; align-items: center; gap: 6px; line-height: 1.3;
 }
-.card-body{padding:24px}
+.card-body{padding:16px} /* V31: tighter body padding */
 
 /* Collapsible MQTT Panel */
 .collapsible-head{ cursor:pointer; }
@@ -165,7 +171,8 @@ body{
 
 /* --- Inputs & Forms --- */
 .row{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-.stack{display:flex; flex-direction:column; gap:6px}
+.stack{display:flex; flex-direction:column; gap:6px; min-width:0} /* V31: allow shrink */
+.row > .stack{ flex: 1 1 0; } /* V31: stacks share row width evenly so 100%-width inputs fit */
 
 label { font-size: 13px; font-weight: 700; color: var(--muted); margin-left: 4px; }
 
@@ -276,9 +283,25 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
 
 /* --- Chart Components --- */
 .chart-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; overflow: hidden; width: 100%; }
-.chart-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-bottom: 16px; }
+.chart-container canvas { max-width: 100%; height: auto; } /* V31: fit canvas inside narrow column */
+.chart-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-bottom: 12px; } /* V31: tighter gap */
 .chart-controls.full-row { grid-template-columns: 1fr; }
+.chart-input-group { display: flex; flex-direction: column; min-width: 0; } /* V31 */
+.chart-input-group input, .chart-input-group select { width: 100%; min-width: 0; padding: 0 10px; height: 38px; font-size: 13px; } /* V31: fill cell */
 .chart-input-group label { font-size: 11px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; color: var(--muted); }
+
+/* V32: trend chart Y Min / Y Max / 筆數 control bar — grid 3-col, no spin arrows, centered digits */
+.trend-controls{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; width:100%; margin-bottom:12px; background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #f1f5f9; }
+.trend-controls .stack{ min-width:0; gap:4px; flex:initial; }
+.trend-controls label{ font-size:11px; margin-left:0; text-align:center; font-weight:700; color:var(--muted); }
+.trend-controls input[type=number]{
+  width:100%; min-width:0; height:34px;
+  padding:0 4px; text-align:center; font-size:13px;
+  border:1px solid var(--line); border-radius:10px; background:#fff;
+  -moz-appearance:textfield; appearance:textfield;
+}
+.trend-controls input[type=number]::-webkit-outer-spin-button,
+.trend-controls input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
 
 /* Fullscreen Mode */
 .fullscreen-card { 
@@ -290,10 +313,10 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
 .fullscreen-card .card-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .fullscreen-card canvas { max-width: 100%; max-height: 100%; }
 
-.btn-expand { 
-  cursor: pointer; color: var(--primary); background: rgba(5,150,105,0.1); 
-  border: none; font-size: 12px; font-weight: 700; padding: 6px 12px; 
-  border-radius: 6px; transition: all 0.2s; 
+.btn-expand {
+  cursor: pointer; color: var(--primary); background: rgba(5,150,105,0.1);
+  border: none; font-size: 11px; font-weight: 700; padding: 5px 9px; /* V31: more compact */
+  border-radius: 6px; transition: all 0.2s; white-space: nowrap;
 }
 .btn-expand:hover { background: var(--primary); color: #fff; }
 .btn-close-fs { display: none; background: #fee2e2; color: #b91c1c; }
@@ -457,8 +480,8 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
 
       <!-- Row 1: Gauges -->
       <div class="section-title"><span>📊</span> 即時監控儀表</div>
-      <!-- Changed from grid-3 to grid-4 to accommodate CO2 -->
-      <div class="grid grid-4">
+      <!-- V30: grid-5 to accommodate 高照燈 PPFD -->
+      <div class="grid grid-5">
         <!-- PPFD Gauge -->
         <section class="card" id="cardGaugePPFD">
             <div class="card-head">
@@ -482,7 +505,7 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
                         <select id="ppfdType" onchange="updateAllGauges()">
                             <option value="half-donut" selected>Half Donut (半圓)</option>
                             <option value="thermometer">Thermometer (溫度計)</option>
-                            <option value="water-tank">Water Tank (濕度/水位)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
                             <option value="tachometer">Tachometer (轉速表)</option>
                             <option value="circular-ring">Circular Ring (環形)</option>
                             <option value="vertical-bar">Vertical Bar (垂直條)</option>
@@ -516,7 +539,7 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
                         <select id="tempType" onchange="updateAllGauges()">
                             <option value="half-donut">Half Donut (半圓)</option>
                             <option value="thermometer" selected>Thermometer (溫度計)</option>
-                            <option value="water-tank">Water Tank (濕度/水位)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
                             <option value="tachometer">Tachometer (轉速表)</option>
                             <option value="circular-ring">Circular Ring (環形)</option>
                             <option value="vertical-bar">Vertical Bar (垂直條)</option>
@@ -550,7 +573,7 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
                         <select id="humType" onchange="updateAllGauges()">
                             <option value="half-donut">Half Donut (半圓)</option>
                             <option value="thermometer">Thermometer (溫度計)</option>
-                            <option value="water-tank" selected>Water Tank (濕度/水位)</option>
+                            <option value="water-tank" selected>Water Tank (水位)</option>
                             <option value="tachometer">Tachometer (轉速表)</option>
                             <option value="circular-ring">Circular Ring (環形)</option>
                             <option value="vertical-bar">Vertical Bar (垂直條)</option>
@@ -584,7 +607,7 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
                         <select id="co2Type" onchange="updateAllGauges()">
                             <option value="half-donut" selected>Half Donut (半圓)</option>
                             <option value="thermometer">Thermometer (溫度計)</option>
-                            <option value="water-tank">Water Tank (濕度/水位)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
                             <option value="tachometer">Tachometer (轉速表)</option>
                             <option value="circular-ring">Circular Ring (環形)</option>
                             <option value="vertical-bar">Vertical Bar (垂直條)</option>
@@ -595,12 +618,46 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
             </div>
         </section>
 
+        <!-- 高照燈 PPFD Gauge (V30 New) -->
+        <section class="card" id="cardGaugeAlla">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <h3>🔆 高照燈 PPFD 光量子通量密度</h3>
+                <span class="badge admin-topic">nfualla/ppfd</span>
+              </div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardGaugeAlla', 'gauge', 'alla')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardGaugeAlla', 'gauge', 'alla')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-controls">
+                    <div class="chart-input-group"><label>Min</label><input type="number" id="allaMin" value="0" onchange="updateAllGauges()"></div>
+                    <div class="chart-input-group"><label>Max</label><input type="number" id="allaMax" value="1500" onchange="updateAllGauges()"></div>
+                </div>
+                <div class="chart-controls full-row">
+                    <div class="chart-input-group">
+                        <label>儀表樣式</label>
+                        <select id="allaType" onchange="updateAllGauges()">
+                            <option value="half-donut" selected>Half Donut (半圓)</option>
+                            <option value="thermometer">Thermometer (溫度計)</option>
+                            <option value="water-tank">Water Tank (水位)</option>
+                            <option value="tachometer">Tachometer (轉速表)</option>
+                            <option value="circular-ring">Circular Ring (環形)</option>
+                            <option value="vertical-bar">Vertical Bar (垂直條)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container" id="conGaugeAlla"><canvas id="cvGaugeAlla" width="300" height="200"></canvas></div>
+            </div>
+        </section>
+
       </div>
 
       <!-- Row 2: Charts -->
       <div class="section-title"><span>📈</span> 歷史趨勢分析</div>
-      <!-- Changed from grid-3 to grid-4 to accommodate CO2 -->
-      <div class="grid grid-4">
+      <!-- V30: grid-5 to accommodate 高照燈 PPFD 趨勢圖 -->
+      <div class="grid grid-5">
         <!-- PPFD Chart -->
         <section class="card" id="cardChartPPFD">
             <div class="card-head">
@@ -611,10 +668,10 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
               </div>
             </div>
             <div class="card-body">
-              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
-                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinPPFD" value="0" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
-                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxPPFD" value="1000" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
-                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsPPFD" value="20" style="width:80px" onchange="updateChartConfig('ppfd')"></div>
+              <div class="trend-controls">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinPPFD" value="0" style="width:100%; min-width:60px" onchange="updateChartConfig('ppfd')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxPPFD" value="1000" style="width:100%; min-width:60px" onchange="updateChartConfig('ppfd')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsPPFD" value="20" style="width:100%; min-width:60px" onchange="updateChartConfig('ppfd')"></div>
               </div>
               <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartPPFD"></canvas></div>
             </div>
@@ -630,10 +687,10 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
               </div>
             </div>
             <div class="card-body">
-              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
-                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinTemp" value="0" style="width:80px" onchange="updateChartConfig('temp')"></div>
-                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxTemp" value="50" style="width:80px" onchange="updateChartConfig('temp')"></div>
-                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsTemp" value="20" style="width:80px" onchange="updateChartConfig('temp')"></div>
+              <div class="trend-controls">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinTemp" value="0" style="width:100%; min-width:60px" onchange="updateChartConfig('temp')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxTemp" value="50" style="width:100%; min-width:60px" onchange="updateChartConfig('temp')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsTemp" value="20" style="width:100%; min-width:60px" onchange="updateChartConfig('temp')"></div>
               </div>
               <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartTemp"></canvas></div>
             </div>
@@ -649,10 +706,10 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
               </div>
             </div>
             <div class="card-body">
-              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
-                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinHum" value="0" style="width:80px" onchange="updateChartConfig('hum')"></div>
-                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxHum" value="100" style="width:80px" onchange="updateChartConfig('hum')"></div>
-                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsHum" value="20" style="width:80px" onchange="updateChartConfig('hum')"></div>
+              <div class="trend-controls">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinHum" value="0" style="width:100%; min-width:60px" onchange="updateChartConfig('hum')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxHum" value="100" style="width:100%; min-width:60px" onchange="updateChartConfig('hum')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsHum" value="20" style="width:100%; min-width:60px" onchange="updateChartConfig('hum')"></div>
               </div>
               <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartHum"></canvas></div>
             </div>
@@ -668,12 +725,31 @@ input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); backgroun
               </div>
             </div>
             <div class="card-body">
-              <div class="row" style="margin-bottom:12px; background:#f8fafc; padding:16px; border-radius:16px; border:1px solid #f1f5f9">
-                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinCo2" value="400" style="width:80px" onchange="updateChartConfig('co2')"></div>
-                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxCo2" value="2000" style="width:80px" onchange="updateChartConfig('co2')"></div>
-                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsCo2" value="20" style="width:80px" onchange="updateChartConfig('co2')"></div>
+              <div class="trend-controls">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinCo2" value="400" style="width:100%; min-width:60px" onchange="updateChartConfig('co2')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxCo2" value="2000" style="width:100%; min-width:60px" onchange="updateChartConfig('co2')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsCo2" value="20" style="width:100%; min-width:60px" onchange="updateChartConfig('co2')"></div>
               </div>
               <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartCo2"></canvas></div>
+            </div>
+        </section>
+
+        <!-- 高照燈 PPFD Chart (V30 New) -->
+        <section class="card" id="cardChartAlla">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px;"><h3>🔆 高照燈 PPFD 趨勢圖</h3></div>
+              <div>
+                <button class="btn-expand" onclick="toggleFullscreen('cardChartAlla', 'chart', 'alla')">放大</button>
+                <button class="btn-expand btn-close-fs" onclick="toggleFullscreen('cardChartAlla', 'chart', 'alla')">關閉</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="trend-controls">
+                  <div class="stack"><label>Y Min</label><input type="number" id="chartYMinAlla" value="0" style="width:100%; min-width:60px" onchange="updateChartConfig('alla')"></div>
+                  <div class="stack"><label>Y Max</label><input type="number" id="chartYMaxAlla" value="1500" style="width:100%; min-width:60px" onchange="updateChartConfig('alla')"></div>
+                  <div class="stack"><label>筆數</label><input type="number" id="chartMaxPointsAlla" value="20" style="width:100%; min-width:60px" onchange="updateChartConfig('alla')"></div>
+              </div>
+              <div class="chart-wrapper" style="position: relative; height:300px; width:100%"><canvas id="cvChartAlla"></canvas></div>
             </div>
         </section>
 
@@ -846,7 +922,7 @@ $('loginPass').addEventListener('keyup', (e) => { if (e.key === 'Enter') checkLo
 
 // Store & View
 // Added co2 to store
-const store = { ppfd: { val: 0, chart: null }, temp: { val: 0, chart: null }, hum: { val: 0, chart: null }, co2: { val: 0, chart: null } };
+const store = { ppfd: { val: 0, chart: null }, temp: { val: 0, chart: null }, hum: { val: 0, chart: null }, co2: { val: 0, chart: null }, alla: { val: 0, chart: null } };
 
 function switchView(viewName) {
     if(currentUserRole === 'visitor' && viewName === 'control') { alert('權限不足：Visitor 僅能使用 Monitor'); return; }
@@ -858,6 +934,7 @@ function switchView(viewName) {
         if(store.temp.chart) store.temp.chart.resize(); 
         if(store.hum.chart) store.hum.chart.resize(); 
         if(store.co2.chart) store.co2.chart.resize(); // Added resize for CO2
+        if(store.alla.chart) store.alla.chart.resize(); // V30: 高照燈 PPFD
     }, 100);
 }
 ['r','w','b','fr','c1','a1'].forEach(k => { const el = $(k); if(el) el.addEventListener('input', e => $(k+'v').textContent = e.target.value); });
@@ -881,7 +958,7 @@ function connectWS(){
   client.on('connect', () => {
     setConn(true); logLine('[Event] Connected');
     // Added CO2 topic to subscription
-    ['nfuc1/ppfd', 'nfuc1/vpdJson', 'nfuc2/co2ppm'].forEach(t => client.subscribe(t, {qos:0}, (err) => { 
+    ['nfuc1/ppfd', 'nfuc1/vpdJson', 'nfuc2/co2ppm', 'nfualla/ppfd'].forEach(t => client.subscribe(t, {qos:0}, (err) => {
         // Only Log Subscriptions for Super Admin
         if(!err && currentUserRole === 'super administrator') logLine('[Subscribed] ' + t); 
     }));
@@ -902,6 +979,11 @@ function connectWS(){
     if(topic === 'nfuc2/co2ppm'){
         store.co2.val = parseFloat(msgStr) || 0;
         renderGauge('co2'); updateGenericChart(store.co2.chart, store.co2.val, 'chartMaxPointsCo2');
+    }
+    // V30: 高照燈 PPFD
+    if(topic === 'nfualla/ppfd'){
+        store.alla.val = parseFloat(msgStr) || 0;
+        renderGauge('alla'); updateGenericChart(store.alla.chart, store.alla.val, 'chartMaxPointsAlla');
     }
     if(topic === 'nfuc1/vpdJson'){
         try {
@@ -954,6 +1036,7 @@ function renderGauge(key) {
     if(key === 'temp') label = 'Temp °C';
     if(key === 'hum') label = 'Humidity %';
     if(key === 'co2') label = 'CO2 ppm';
+    if(key === 'alla') label = '高照燈 PPFD';
 
     const canvas = $(canvasId), container = $(containerId);
     if(!canvas || !container) return;
@@ -1187,7 +1270,7 @@ function drawVerticalBar(ctx, w, h, val, min, max, label) {
 }
 
 function updateAllGauges() {
-    renderGauge('ppfd'); renderGauge('temp'); renderGauge('hum'); renderGauge('co2');
+    renderGauge('ppfd'); renderGauge('temp'); renderGauge('hum'); renderGauge('co2'); renderGauge('alla');
 }
 
 // Chart Utils
@@ -1236,6 +1319,7 @@ function updateChartConfig(type){
     if(type === 'temp') { chart = store.temp.chart; minId='chartYMinTemp'; maxId='chartYMaxTemp'; maxPtsId='chartMaxPointsTemp'; }
     if(type === 'hum')  { chart = store.hum.chart; minId='chartYMinHum'; maxId='chartYMaxHum'; maxPtsId='chartMaxPointsHum'; }
     if(type === 'co2')  { chart = store.co2.chart; minId='chartYMinCo2'; maxId='chartYMaxCo2'; maxPtsId='chartMaxPointsCo2'; }
+    if(type === 'alla') { chart = store.alla.chart; minId='chartYMinAlla'; maxId='chartYMaxAlla'; maxPtsId='chartMaxPointsAlla'; }
     if(!chart) return;
     const yMin = parseFloat($(minId).value), yMax = parseFloat($(maxId).value);
     chart.options.scales.y.min = isNaN(yMin) ? undefined : yMin;
@@ -1250,7 +1334,7 @@ function animate() {
     wavePhase += 0.05; // Increment phase
     
     // Check if any visible gauge is 'water-tank' and needs redraw
-    ['ppfd', 'temp', 'hum', 'co2'].forEach(key => {
+    ['ppfd', 'temp', 'hum', 'co2', 'alla'].forEach(key => {
         const typeEl = document.getElementById(key + 'Type');
         if(typeEl && typeEl.value === 'water-tank') {
             renderGauge(key);
@@ -1267,8 +1351,10 @@ window.addEventListener('load', () => {
     store.temp.chart = initGenericChart('cvChartTemp', '#d97706', 'Temp');
     store.hum.chart  = initGenericChart('cvChartHum',  '#0ea5e9', 'Humidity');
     store.co2.chart  = initGenericChart('cvChartCo2',  '#8b5cf6', 'CO2');
-    
-    updateChartConfig('ppfd'); updateChartConfig('temp'); updateChartConfig('hum'); updateChartConfig('co2');
+    // V30: 高照燈 PPFD chart (lime/leaf green to differentiate from main PPFD)
+    store.alla.chart = initGenericChart('cvChartAlla', '#65a30d', '高照燈 PPFD');
+
+    updateChartConfig('ppfd'); updateChartConfig('temp'); updateChartConfig('hum'); updateChartConfig('co2'); updateChartConfig('alla');
     updateAllGauges();
     animate(); // Start Animation Loop
 });
@@ -1299,7 +1385,7 @@ function toggleFullscreen(cardId, type, dataType) {
     }
 }
 window.addEventListener('resize', () => {
-    ['ppfd', 'temp', 'hum', 'co2'].forEach(type => {
+    ['ppfd', 'temp', 'hum', 'co2', 'alla'].forEach(type => {
         let suffix = type.charAt(0).toUpperCase() + type.slice(1);
         if(type === 'ppfd') suffix = 'PPFD'; 
         if(type === 'co2') suffix = 'Co2'; 
